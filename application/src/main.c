@@ -239,7 +239,15 @@ int main(void)
 
 	LOG_INF("Advertising successfully started\n");
 
+	uint16_t temp;
+
 	for (;;) {
+
+		err = k_msgq_get(&device_message_queue, &temp, K_NO_WAIT );
+		if(err == 0)
+		{
+			LOG_INF("Button Pressed: %c", (char)temp);
+		}
 
 		if(is_bond_delete == 1)
 		{

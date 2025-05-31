@@ -16,11 +16,14 @@
 const struct {} buttons_def_include_once;
 
 static const struct gpio_pin col[] = {
-	{ .port = 1, .pin = DT_GPIO_PIN(DT_NODELABEL(button0), gpios) },
-	{ .port = 1, .pin = DT_GPIO_PIN(DT_NODELABEL(button1), gpios) },
+	{ .port = 1, .pin = DT_GPIO_PIN(DT_NODELABEL(col0), gpios) },
+	{ .port = 1, .pin = DT_GPIO_PIN(DT_NODELABEL(col1), gpios) },
+	{ .port = 1, .pin = DT_GPIO_PIN(DT_NODELABEL(col2), gpios) },
 };
 
 static const struct gpio_pin row[] = {
-	{ .port = 1, .pin = DT_GPIO_PIN(DT_NODELABEL(button2), gpios) },
-	{ .port = 1, .pin = DT_GPIO_PIN(DT_NODELABEL(button3), gpios) },
+	{ .port = 1, .pin = DT_GPIO_PIN(DT_NODELABEL(row0), gpios) },
+	{ .port = 1, .pin = DT_GPIO_PIN(DT_NODELABEL(row1), gpios) },
+	{ .port = 1, .pin = DT_GPIO_PIN(DT_NODELABEL(row2), gpios) },
+	{ .port = 1, .pin = DT_GPIO_PIN(DT_NODELABEL(row3), gpios) },
 };

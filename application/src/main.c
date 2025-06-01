@@ -13,6 +13,7 @@
 #include <zephyr/settings/settings.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
+#include <math.h>
 
 #include <app_event_manager.h>
 
@@ -166,8 +167,38 @@ static void auth_cancel(struct bt_conn *conn)
 	LOG_INF("Pairing cancelled: %s\n", addr);
 }
 
+static void auth_passkey_entry(struct bt_conn *conn)
+{
+	LOG_INF("Passkey");
+
+	int err;
+	uint16_t temp;
+	uint32_t passkey = 0;
+
+	for(int i = 0; i < 6; ++i)
+	{
+		err = k_msgq_get(&device_message_queue, &temp, K_FOREVER);
+
+		passkey = (temp - 48) * pow(10, 5 - i) + passkey;
+
+		if(err == 0)
+		{
+			LOG_INF("Button Pressed: %c", (char)temp);
+		}
+	}
+
+	LOG_INF("Passkey is: %d", passkey);
+
+	err = bt_conn_auth_passkey_entry(conn, passkey);
+	if(err != 0)
+	{
+		LOG_INF("Error on passkey entry: %d", err);
+	}
+		
+}
+
 static struct bt_conn_auth_cb conn_auth_callbacks = {
-	.passkey_display = auth_passkey_display,
+	.passkey_entry = auth_passkey_entry,
 	.cancel = auth_cancel,
 };
 
@@ -242,12 +273,6 @@ int main(void)
 	uint16_t temp;
 
 	for (;;) {
-
-		err = k_msgq_get(&device_message_queue, &temp, K_NO_WAIT );
-		if(err == 0)
-		{
-			LOG_INF("Button Pressed: %c", (char)temp);
-		}
 
 		if(is_bond_delete == 1)
 		{

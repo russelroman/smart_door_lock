@@ -38,6 +38,61 @@ LOG_MODULE_REGISTER(MODULE);
 #define RUN_LED_BLINK_INTERVAL 1000
 #define BUTTON_NODE DT_ALIAS(sw4)
 
+K_MSGQ_DEFINE(device_message_queue, sizeof(uint16_t), 10, 2);
+
+struct k_sem my_sem;
+
+K_SEM_DEFINE(my_sem, 0, 1);
+
+int pass_code = 123456;
+
+void keypad_thread(void *, void *, void *)
+{
+	uint16_t key = 0;
+
+	//err = k_msgq_get(&device_message_queue, &temp, K_FOREVER);
+	int err;
+	int temp;
+	int passkey;
+
+	while(1)
+	{
+		LOG_INF("Start of Thread");
+
+		k_sem_take(&my_sem, K_FOREVER);
+
+		for(int i = 0; i < 6; ++i)
+		{
+			err = k_msgq_get(&device_message_queue, &temp, K_FOREVER);
+
+			passkey = (temp - 48) * pow(10, 5 - i) + passkey;
+
+			if(err == 0)
+			{
+				LOG_INF("Button Pressed: %c", (char)temp);
+			}
+		}
+
+		if(pass_code == passkey)
+		{
+			LOG_INF("Correct PIN");
+		}
+		else
+		{
+			LOG_INF("Incorrect PIN");
+		}
+
+		LOG_INF("Passkey: %d", passkey);
+		LOG_INF("Body of Thread");
+		//k_sleep(K_MSEC(RUN_LED_BLINK_INTERVAL));
+	}
+}
+
+
+
+K_THREAD_DEFINE(keypad, 1024,
+	keypad_thread, NULL, NULL, NULL,
+	1, 0, 0);
 
 
 static const struct bt_data ad[] = {
@@ -50,7 +105,7 @@ static const struct bt_data sd[] = {
 	BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_LOCK_VAL),
 };
 
-K_MSGQ_DEFINE(device_message_queue, sizeof(uint16_t), 10, 2);
+
 
 static const struct gpio_dt_spec button_temp = GPIO_DT_SPEC_GET(BUTTON_NODE, gpios);
 static struct gpio_callback button_cb_data;
@@ -271,6 +326,9 @@ int main(void)
 	LOG_INF("Advertising successfully started\n");
 
 	uint16_t temp;
+
+
+	
 
 	for (;;) {
 

@@ -34,6 +34,7 @@ enum button_id {
     BUTTON_ID_COUNT
 };
 
+extern struct k_sem my_sem;
 
 static bool handle_button_event(const struct button_event *evt)
 {
@@ -45,13 +46,21 @@ static bool handle_button_event(const struct button_event *evt)
         row = evt->key_id & (0x007FU);
         column = (evt->key_id & (0x3F80U)) >> 7;
 
-        int ret;
+        int ret = 0;
 
         uint16_t pressed;
 
         pressed = keypad_mapping[row][column];
 
-        ret = k_msgq_put(&device_message_queue, &pressed , K_FOREVER);
+        if(pressed == '#')
+        {
+            k_sem_give(&my_sem);
+        }
+        else
+        {
+            ret = k_msgq_put(&device_message_queue, &pressed , K_FOREVER);
+        }
+
         if (ret){
             LOG_ERR("Return value from k_msgq_put = %d",ret);
         }

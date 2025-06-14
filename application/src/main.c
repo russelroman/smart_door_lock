@@ -252,10 +252,29 @@ static void auth_passkey_entry(struct bt_conn *conn)
 		
 }
 
+static void auth_passkey_confirm(struct bt_conn *conn)
+{
+
+}
+
+enum bt_security_err pairing_accept_cb(struct bt_conn *conn, const struct bt_conn_pairing_feat *const feat)
+{
+	if(feat->io_capability == BT_IO_NO_INPUT_OUTPUT)
+	{
+		LOG_INF("JUST WORKS, DO NOT ALLOW");
+		return BT_SECURITY_ERR_PAIR_NOT_ALLOWED;
+	}
+}
+
 static struct bt_conn_auth_cb conn_auth_callbacks = {
+	.pairing_accept = pairing_accept_cb,
+	.passkey_display = NULL,
+	.passkey_confirm = NULL,
 	.passkey_entry = auth_passkey_entry,
 	.cancel = auth_cancel,
 };
+
+
 
 struct bt_conn_cb connection_callbacks = {
 	.connected = on_connected,

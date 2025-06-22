@@ -81,16 +81,16 @@ static ssize_t read_button(struct bt_conn *conn,
 	
 }
 
-/* LED Button Service Declaration */
+/* Lock Service Declaration */
 BT_GATT_SERVICE_DEFINE(
 	lock_svc, BT_GATT_PRIMARY_SERVICE(BT_UUID_LOCK),
 	BT_GATT_CHARACTERISTIC(BT_UUID_LOCK_PIN,
 			       BT_GATT_CHRC_WRITE,
-			       BT_GATT_PERM_WRITE_AUTHEN,
+			       BT_GATT_PERM_READ_ENCRYPT ,
 			       NULL, write_led, NULL),
 	BT_GATT_CHARACTERISTIC(BT_UUID_LOCK_STATE,
 			       BT_GATT_CHRC_READ,
-			       BT_GATT_PERM_READ_AUTHEN, read_button, NULL,
+			       BT_GATT_PERM_READ_ENCRYPT , read_button, NULL,
 			       &button_state),
 
 );

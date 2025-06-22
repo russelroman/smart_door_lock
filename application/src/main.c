@@ -13,6 +13,7 @@
 #include <zephyr/settings/settings.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/bluetooth/services/bas.h>
 #include <math.h>
 
 #include <app_event_manager.h>
@@ -45,6 +46,8 @@ struct k_sem my_sem;
 K_SEM_DEFINE(my_sem, 0, 1);
 
 int pass_code = 123456;
+
+static uint8_t battery_level = 100;
 
 void keypad_thread(void *, void *, void *)
 {
@@ -267,7 +270,7 @@ enum bt_security_err pairing_accept_cb(struct bt_conn *conn, const struct bt_con
 }
 
 static struct bt_conn_auth_cb conn_auth_callbacks = {
-	.pairing_accept = pairing_accept_cb,
+	.pairing_accept = NULL,
 	.passkey_display = NULL,
 	.passkey_confirm = NULL,
 	.passkey_entry = auth_passkey_entry,
@@ -289,6 +292,18 @@ void button_pressed(const struct device *dev, struct gpio_callback *cb, uint32_t
 
 	is_bond_delete = true;
 }
+
+void simulate_battery_level(void)
+{
+	if (--battery_level == 0)
+	{
+		battery_level = 100;
+	}
+
+	bt_bas_set_battery_level(battery_level);
+}
+
+
 
 int main(void)
 {
@@ -321,6 +336,8 @@ int main(void)
 	} else {
 		module_set_state(MODULE_STATE_READY);
 	}
+
+	simulate_battery_level();
 
 	err = bt_enable(NULL);
 	if (err) {

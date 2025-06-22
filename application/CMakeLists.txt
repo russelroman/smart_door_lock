@@ -12,6 +12,7 @@ project(NONE)
 target_sources(app PRIVATE
   src/main.c
   src/lock_svc.c
+  src/dis_svc.c
   src/keypad.c
 )
 

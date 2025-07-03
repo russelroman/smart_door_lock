@@ -11,9 +11,12 @@ project(NONE)
 # NORDIC SDK APP START
 target_sources(app PRIVATE
   src/main.c
-  src/lock_svc.c
-  src/dis_svc.c
+  src/gatt_lock_svc.c
+  src/gatt_dis_svc.c
   src/keypad.c
+  src/gap_advertising.c
+  src/gap_connection.c
+  src/security.c
 )
 
 zephyr_include_directories(

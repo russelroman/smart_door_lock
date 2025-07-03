@@ -18,6 +18,7 @@ extern "C" {
 #endif
 
 #include <zephyr/types.h>
+#include <zephyr/bluetooth/uuid.h>
 
 
 #define BT_UUID_LOCK_VAL	\

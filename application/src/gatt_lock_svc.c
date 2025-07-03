@@ -22,7 +22,7 @@
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/bluetooth/gatt.h>
 
-#include "lock_svc.h"
+#include "gatt_lock_svc.h"
 
 #include <zephyr/logging/log.h>
 

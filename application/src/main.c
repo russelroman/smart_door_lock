@@ -22,19 +22,11 @@
 LOG_MODULE_REGISTER(MODULE);
 #include <caf/events/module_state_event.h>
 
-#include "lock_svc.h"
+#include "gatt_lock_svc.h"
+#include "gap_advertising.h"
+#include "gap_connection.h"
+#include "security.h"
 
-
-#define BT_LE_ADV_CONN_NO_ACCEPT_LIST  BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONNECTABLE|BT_LE_ADV_OPT_ONE_TIME | BT_LE_ADV_OPT_USE_IDENTITY , \
-				       BT_GAP_ADV_FAST_INT_MIN_2, \
-				       BT_GAP_ADV_FAST_INT_MAX_2, NULL)
-
-#define BT_LE_ADV_CONN_ACCEPT_LIST BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONNECTABLE|BT_LE_ADV_OPT_FILTER_CONN|BT_LE_ADV_OPT_ONE_TIME | BT_LE_ADV_OPT_USE_IDENTITY , \
-				       BT_GAP_ADV_FAST_INT_MIN_2, \
-				       BT_GAP_ADV_FAST_INT_MAX_2, NULL)
-
-#define DEVICE_NAME CONFIG_BT_DEVICE_NAME
-#define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
 
 #define RUN_LED_BLINK_INTERVAL 1000
 #define BUTTON_NODE DT_ALIAS(sw4)
@@ -49,6 +41,7 @@ int pass_code = 123456;
 
 static uint8_t battery_level = 100;
 
+
 void keypad_thread(void *, void *, void *)
 {
 	uint16_t key = 0;
@@ -56,7 +49,7 @@ void keypad_thread(void *, void *, void *)
 	//err = k_msgq_get(&device_message_queue, &temp, K_FOREVER);
 	int err;
 	int temp;
-	int passkey;
+	int passkey = 0;
 
 	while(1)
 	{
@@ -92,198 +85,14 @@ void keypad_thread(void *, void *, void *)
 }
 
 
-
 K_THREAD_DEFINE(keypad, 1024,
 	keypad_thread, NULL, NULL, NULL,
 	1, 0, 0);
 
 
-static const struct bt_data ad[] = {
-	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
-	BT_DATA(BT_DATA_NAME_COMPLETE, DEVICE_NAME, DEVICE_NAME_LEN),
-	BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_LOCK_VAL),
-};
-
-static const struct bt_data sd[] = {
-	BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_LOCK_VAL),
-};
-
-
-
 static const struct gpio_dt_spec button_temp = GPIO_DT_SPEC_GET(BUTTON_NODE, gpios);
 static struct gpio_callback button_cb_data;
 static bool is_bond_delete = 0;
-
-
-static const struct bt_le_adv_param *adv_param = BT_LE_ADV_PARAM(
-	(BT_LE_ADV_OPT_CONNECTABLE |
-	 BT_LE_ADV_OPT_USE_IDENTITY), /* Connectable advertising and use identity address */
-	800, /* Min Advertising Interval 500ms (800*0.625ms) */
-	801, /* Max Advertising Interval 500.625ms (801*0.625ms) */
-	NULL); /* Set to NULL for undirected advertising */
-
-
-static void setup_accept_list_cb(const struct bt_bond_info *info, void *user_data)
-{
-	int *bond_cnt = user_data;
-	if ((*bond_cnt) < 0) {
-		return;
-	}
-	int err = bt_le_filter_accept_list_add(&info->addr);
-	LOG_INF("Added following peer to whitelist: %x %x \n",info->addr.a.val[0],info->addr.a.val[1]);
-	if (err) {
-		LOG_INF("Cannot add peer to Filter Accept List (err: %d)\n", err);
-		(*bond_cnt) = -EIO;
-	} else {
-		(*bond_cnt)++;
-	}
-}
-
-
-static int setup_accept_list(uint8_t local_id)
-{
-	int err = bt_le_filter_accept_list_clear();
-	if (err) {
-		LOG_INF("Cannot clear Filter Accept List (err: %d)\n", err);
-		return err;
-	}
-	int bond_cnt = 0;
-	bt_foreach_bond(local_id, setup_accept_list_cb, &bond_cnt);
-	return bond_cnt;
-}
-
-
-void advertise_with_acceptlist(struct k_work *work)
-{
-	int err=0;
-	int allowed_cnt= setup_accept_list(BT_ID_DEFAULT);
-	if (allowed_cnt<0){
-		LOG_INF("Acceptlist setup failed (err:%d)\n", allowed_cnt);
-	} else {
-		if (allowed_cnt==0){
-			LOG_INF("Advertising with no Filter Accept list\n"); 
-			err = bt_le_adv_start(BT_LE_ADV_CONN_NO_ACCEPT_LIST, ad, ARRAY_SIZE(ad),
-					sd, ARRAY_SIZE(sd));
-		}
-		else {
-			LOG_INF("Acceptlist setup number  = %d \n",allowed_cnt);
-			err = bt_le_adv_start(BT_LE_ADV_CONN_ACCEPT_LIST, ad, ARRAY_SIZE(ad),
-				sd, ARRAY_SIZE(sd));	
-		}
-		if (err) {
-		 	LOG_INF("Advertising failed to start (err %d)\n", err);
-			return;
-		}
-		LOG_INF("Advertising successfully started\n");
-	}
-}
-K_WORK_DEFINE(advertise_acceptlist_work, advertise_with_acceptlist);
-
-
-static void on_connected(struct bt_conn *conn, uint8_t err)
-{
-	if (err) {
-		printk("Connection failed (err %u)\n", err);
-		return;
-	}
-
-	printk("Connected\n");
-}
-
-static void on_disconnected(struct bt_conn *conn, uint8_t reason)
-{
-	printk("Disconnected (reason %u)\n", reason);
-	k_work_submit(&advertise_acceptlist_work);
-}
-
-static void on_security_changed(struct bt_conn *conn, bt_security_t level,
-			     enum bt_security_err err)
-{
-	char addr[BT_ADDR_LE_STR_LEN];
-
-	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-
-	if (!err) {
-		LOG_INF("Security changed: %s level %u\n", addr, level);
-	} else {
-		LOG_INF("Security failed: %s level %u err %d\n", addr, level,
-			err);
-	}
-}
-
-static void auth_passkey_display(struct bt_conn *conn, unsigned int passkey)
-{
-	char addr[BT_ADDR_LE_STR_LEN];
-	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-	LOG_INF("Passkey for %s: %06u\n", addr, passkey);
-}
-
-static void auth_cancel(struct bt_conn *conn)
-{
-	char addr[BT_ADDR_LE_STR_LEN];
-	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-	LOG_INF("Pairing cancelled: %s\n", addr);
-}
-
-static void auth_passkey_entry(struct bt_conn *conn)
-{
-	LOG_INF("Passkey");
-
-	int err;
-	uint16_t temp;
-	uint32_t passkey = 0;
-
-	for(int i = 0; i < 6; ++i)
-	{
-		err = k_msgq_get(&device_message_queue, &temp, K_FOREVER);
-
-		passkey = (temp - 48) * pow(10, 5 - i) + passkey;
-
-		if(err == 0)
-		{
-			LOG_INF("Button Pressed: %c", (char)temp);
-		}
-	}
-
-	LOG_INF("Passkey is: %d", passkey);
-
-	err = bt_conn_auth_passkey_entry(conn, passkey);
-	if(err != 0)
-	{
-		LOG_INF("Error on passkey entry: %d", err);
-	}
-		
-}
-
-static void auth_passkey_confirm(struct bt_conn *conn)
-{
-
-}
-
-enum bt_security_err pairing_accept_cb(struct bt_conn *conn, const struct bt_conn_pairing_feat *const feat)
-{
-	if(feat->io_capability == BT_IO_NO_INPUT_OUTPUT)
-	{
-		LOG_INF("JUST WORKS, DO NOT ALLOW");
-		return BT_SECURITY_ERR_PAIR_NOT_ALLOWED;
-	}
-}
-
-static struct bt_conn_auth_cb conn_auth_callbacks = {
-	.pairing_accept = NULL,
-	.passkey_display = NULL,
-	.passkey_confirm = NULL,
-	.passkey_entry = auth_passkey_entry,
-	.cancel = auth_cancel,
-};
-
-
-
-struct bt_conn_cb connection_callbacks = {
-	.connected = on_connected,
-	.disconnected = on_disconnected,
-	.security_changed = on_security_changed,
-};
 
 
 void button_pressed(const struct device *dev, struct gpio_callback *cb, uint32_t pins)
@@ -302,7 +111,6 @@ void simulate_battery_level(void)
 
 	bt_bas_set_battery_level(battery_level);
 }
-
 
 
 int main(void)
@@ -357,14 +165,11 @@ int main(void)
 
 	LOG_INF("Bluetooth initialized\n");
 
-	k_work_submit(&advertise_acceptlist_work);
+	advetising_start();
 
 	LOG_INF("Advertising successfully started\n");
 
 	uint16_t temp;
-
-
-	
 
 	for (;;) {
 
